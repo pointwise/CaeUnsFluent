@@ -25,23 +25,24 @@
 #include <utility>
 
 
+// VC group stats and info
 struct VCGroupStats {
-    PWP_UINT32 groupBlkCells;
-    PWP_UINT32 elemTypes;
-    PWP_UINT32 tid;
+    PWP_UINT32  groupBlkCells;
+    PWP_UINT32  elemTypes;
+    PWP_UINT32  tid;
     std::string type;
     std::string name;
 };
 
-typedef std::vector<PWP_UINT32> VCBlocks;
-typedef std::pair<VCGroupStats, VCBlocks> VCGroupData;
-typedef std::map<PWP_UINT32, VCGroupData> BlockVCMap;
-typedef std::vector<PWGM_FACESTREAM_DATA> ShadowFaces;
+using VCBlocks      = std::vector<PWP_UINT32>;
+using VCGroupData   = std::pair<VCGroupStats, VCBlocks>;
+using BlockVCMap    = std::map<PWP_UINT32, VCGroupData>;
+using ShadowFaces   = std::vector<PWGM_FACESTREAM_DATA>;
 
 
+// Runtime export state data
 struct FLUENT_DATA {
     FLUENT_DATA() {
-        reset();
     }
 
     ~FLUENT_DATA() {
@@ -49,38 +50,56 @@ struct FLUENT_DATA {
 
     void reset()
     {
-        zone = 0;
-        faceIndex = 1;
-        faceStartIndex = 1;
-        blockIndex = 1;
-        prevFaceType = PWGM_FACETYPE_BOUNDARY;
-        PWGM_HDOMAIN_SET_INVALID(prevDom);
-        PWGM_HDOMAIN_SET_INVALID(currDom);
-        PWGM_HBLOCK_SET_INVALID(prevBlk);
-        vcCellType = FLUENT_CELL_MIXED;
-        prevVCId = PWP_BADID;
-        prevNeighborVCId = PWP_BADID;
-        headerOpen = PWP_FALSE;
-        blockVCMap.clear();
-        shadowFaces.clear();
+        *this = FLUENT_DATA();
     }
 
-    PWP_UINT32          zone;
-    PWP_UINT32          faceIndex;
-    PWP_UINT32          faceStartIndex;
-    PWP_UINT32          blockIndex;
-    PWGM_ENUM_FACETYPE  prevFaceType;
-    PWGM_HDOMAIN        prevDom;
-    PWGM_HDOMAIN        currDom;
-    PWGM_HBLOCK         prevBlk;
-    PWP_UINT32          vcCellType;
-    PWP_UINT32          prevVCId;
-    PWP_UINT32          prevNeighborVCId;
-    PWP_BOOL            headerOpen;
+    // current zone id
+    PWP_UINT32          zone{ 0 };
+
+    // next available global face index
+    PWP_UINT32          faceIndex{ 1 };
+
+    // index of first face in current zone
+    PWP_UINT32          faceStartIndex{ 1 };
+
+    // next available global block index
+    PWP_UINT32          blockIndex{ 1 };
+
+    // the previously streamed face's type
+    PWGM_ENUM_FACETYPE  prevFaceType{ PWGM_FACETYPE_BOUNDARY };
+
+    // previous PWGM_HDOMAIN
+    PWGM_HDOMAIN        prevDom = PWGM_HDOMAIN_INIT;
+
+    // current PWGM_HDOMAIN
+    PWGM_HDOMAIN        currDom = PWGM_HDOMAIN_INIT;
+
+    // previous PWGM_HBLOCK
+    PWGM_HBLOCK         prevBlk = PWGM_HBLOCK_INIT;
+
+    // current zone's cell type
+    PWP_UINT32          vcCellType{ FLUENT_CELL_MIXED };
+
+    // Previous cell's VC id
+    PWP_UINT32          prevVCId{ PWP_BADID };
+
+    // Previous neighbor cell's VC id
+    PWP_UINT32          prevNeighborVCId{ PWP_BADID };
+
+    // true if a header is open
+    PWP_BOOL            headerOpen{ PWP_FALSE };
+
+    // maps VC id to its blocks
     BlockVCMap          blockVCMap;
+
+    // cache of shadow faces
     ShadowFaces         shadowFaces;
-    sysFILEPOS          indexPos1;
-    sysFILEPOS          indexPos2;
+
+    // file pos of open face zone header comment
+    sysFILEPOS          indexPos1{};
+
+    // file pos of open face zone header data
+    sysFILEPOS          indexPos2{};
 };
 
 
@@ -503,6 +522,7 @@ writeBlankLine(CAEP_RTITEM &rti, const PWP_UINT32 lineLength)
 }
 
 
+// Write the global mesh header information
 static bool
 writeHeader(CAEP_RTITEM &rti, PWP_UINT32 nFaces, PWP_UINT32 nBFaces, 
     PWP_UINT32 &nNodes) 
@@ -581,12 +601,14 @@ writeHeader(CAEP_RTITEM &rti, PWP_UINT32 nFaces, PWP_UINT32 nBFaces,
 }
 
 
+// Write the nodes section FLUENT_NODES(10)
 static bool
-writeVerts(CAEP_RTITEM &rti, const PWP_UINT32 &nNodes)
+writeVerts(CAEP_RTITEM &rti, const PWP_UINT32 nNodes)
 {
     const PWP_UINT32 dim = (CAEPU_RT_DIM_2D(&rti) ? 2 : 3);
     writeComment(rti, "Zone %u  Number of Nodes : %u", ++rti.data->zone,
         nNodes);
+    // (10 (1 1 NumNodesHex 1 dim)(
     fprintf(rti.fp, "(%d (1 1 %x 1 %u)(\n", FLUENT_NODES, nNodes, dim);
     if (caeuProgressBeginStep(&rti, nNodes)) {
         PWGM_VERTDATA vertData;
@@ -594,9 +616,11 @@ writeVerts(CAEP_RTITEM &rti, const PWP_UINT32 &nNodes)
             PwVertDataMod(PwModEnumVertices(rti.model, ii), &vertData);
             writeReal(rti, vertData.x, "", "");
             if (2 == dim) {
+                // Write XY only for 2-D export
                 writeReal(rti, vertData.y, " ", "\n");
             }
             else {
+                // Write XYZ for 3-D export
                 writeReal(rti, vertData.y, " ", "");
                 writeReal(rti, vertData.z, " ", "\n");
             }
@@ -606,7 +630,8 @@ writeVerts(CAEP_RTITEM &rti, const PWP_UINT32 &nNodes)
         }
         caeuProgressEndStep(&rti);
     }
-    fprintf(rti.fp, "))\n");
+    // Close out nodes section
+    writeSectionListFtr(rti);
     return true;
 }
 
@@ -631,7 +656,7 @@ writeCloseFaceZone(CAEP_RTITEM &rti, const PWGM_ENUM_FACETYPE faceType)
     sysFILEPOS eof;
     pwpFileGetpos(rti.fp, &eof);
 
-    PWP_UINT faceCnt = rti.data->faceIndex - rti.data->faceStartIndex;
+    const PWP_UINT faceCnt = rti.data->faceIndex - rti.data->faceStartIndex;
 
     // write the zone comment line
     pwpFileSetpos(rti.fp, &rti.data->indexPos1);
@@ -708,6 +733,7 @@ writeOpenFaceZone(CAEP_RTITEM &rti)
 }
 
 
+// returns true if face stream has transitioned from one BC group to the next.
 static bool
 isNewBCGroup(const CAEP_RTITEM &rti) {
     return (PWGM_HDOMAIN_ID(rti.data->currDom) != PWGM_HDOMAIN_ID(
@@ -715,16 +741,18 @@ isNewBCGroup(const CAEP_RTITEM &rti) {
 }
 
 
+// Load rti.data->blockVCMap. Where blockVCMap maps a VC id to a VCGroupData
+// object. See BlockVCMap, VCGroupData, and VCBlocks.
 static void
 processBlockVCMap(CAEP_RTITEM &rti)
 {
-    PWP_UINT32 blockCount = PwModBlockCount(rti.model);
+    const PWP_UINT32 blockCount = PwModBlockCount(rti.model);
 
     for (PWP_UINT32 blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
         PWGM_HBLOCK hBlk = PwModEnumBlocks(rti.model, blockIndex);
         PWGM_CONDDATA condData;
         PWGM_ELEMCOUNTS elemCnts;
-        PWP_UINT32 nBlkCells = PwBlkElementCount(hBlk, &elemCnts);
+        const PWP_UINT32 nBlkCells = PwBlkElementCount(hBlk, &elemCnts);
         PWP_UINT32 elemTypes = FLUENT_FACE_OTHER;
         getElemsCodeBlkCells(hBlk, elemCnts, elemTypes);
         getSafeVC(rti, hBlk, condData);
@@ -759,6 +787,7 @@ processBlockVCMap(CAEP_RTITEM &rti)
 }
 
 
+// Write the Cell zone section FLUENT_CELLS(12)
 static const VCGroupStats*
 writeVCZone(CAEP_RTITEM &rti, const PWP_UINT32 &vcId)
 {
@@ -810,7 +839,7 @@ writeVCZone(CAEP_RTITEM &rti, const PWP_UINT32 &vcId)
             }
             fprintf(rti.fp, "\n");
         }
-        fprintf(rti.fp, "))\n");
+        writeSectionListFtr(rti);
         rti.data->blockIndex += grpStats->groupBlkCells;
         writeZoneEnd(rti, grpStats->type, grpStats->name);
     }
@@ -818,6 +847,7 @@ writeVCZone(CAEP_RTITEM &rti, const PWP_UINT32 &vcId)
 }
 
 
+// Invoked once by PwModStreamFaces() before the first face is streamed.
 PWP_UINT32
 beginCB(PWGM_BEGINSTREAM_DATA *data)
 {
@@ -834,6 +864,7 @@ beginCB(PWGM_BEGINSTREAM_DATA *data)
 }
 
 
+// Invoked by PwModStreamFaces() for each face in the grid.
 PWP_UINT32
 faceCB(PWGM_FACESTREAM_DATA *face)
 {
@@ -901,8 +932,8 @@ faceCB(PWGM_FACESTREAM_DATA *face)
         rti.data->prevNeighborVCId = currentNeighborVCId;
     }
 
-    // 3. Open face Header only if a there is no header. All face face must
-    // be enclosed in a zone header/closer.
+    // 3. Open face Header only if a there is no header. All faces must be
+    // enclosed in a zone header/closer.
     if (!rti.data->headerOpen) {
         ++rti.data->zone;
         rti.data->prevFaceType = face->type;
@@ -912,7 +943,7 @@ faceCB(PWGM_FACESTREAM_DATA *face)
         rti.data->headerOpen = PWP_TRUE;
     }
 
-    // 4. Write current face face
+    // 4. Write current face
     writeOneFace(rti, *face);
     ++rti.data->faceIndex;
 
@@ -920,39 +951,44 @@ faceCB(PWGM_FACESTREAM_DATA *face)
 }
 
 
-struct ShadowFaceSorter {
-    // return true if face1 < face2
-    bool operator() (const PWGM_FACESTREAM_DATA &face1,
-        const PWGM_FACESTREAM_DATA &face2)
-    {
-        // ensure strict ordering
-        if (PWGM_HDOMAIN_ID(face1.owner.domain) !=
-            PWGM_HDOMAIN_ID(face2.owner.domain)) {
-            return PWGM_HDOMAIN_ID(face1.owner.domain) <
-                PWGM_HDOMAIN_ID(face2.owner.domain);
-        }
-        else if (face1.owner.cellIndex != face2.owner.cellIndex) {
-            return face1.owner.cellIndex < face2.owner.cellIndex;
-        }
-        return face1.owner.cellFaceIndex < face2.owner.cellFaceIndex;
-    }
-};
-
-
+// Invoked once by PwModStreamFaces() after last face is streamed.
 PWP_UINT32
 endCB(PWGM_ENDSTREAM_DATA *data) {
     CAEP_RTITEM &rti = *((CAEP_RTITEM*) data->userData);
 
     if (rti.data->headerOpen) {
+        // Close out the last face zone
         writeCloseFaceZone(rti, rti.data->prevFaceType);
         rti.data->headerOpen = PWP_FALSE;
     }
 
     if (!rti.data->shadowFaces.empty()) {
+        // Deal with the cached shadow faces
         ShadowFaces &faces = rti.data->shadowFaces;
-        ShadowFaceSorter sorter;
-        std::sort(faces.begin(), faces.end(), sorter);
+        // Sort shadow faces using a strict ordering
+        std::sort(faces.begin(), faces.end(),
+            [](const PWGM_FACESTREAM_DATA &f1, const PWGM_FACESTREAM_DATA &f2)
+            {
+                if (PWGM_HDOMAIN_ID(f1.owner.domain) !=
+                        PWGM_HDOMAIN_ID(f2.owner.domain)) {
+                    // primary sort by domain id
+                    return PWGM_HDOMAIN_ID(f1.owner.domain) <
+                        PWGM_HDOMAIN_ID(f2.owner.domain);
+                }
 
+                if (f1.owner.cellIndex != f2.owner.cellIndex) {
+                    // f1.owner.domain == f2.owner.domain
+                    // secondary sort by cell index
+                    return f1.owner.cellIndex < f2.owner.cellIndex;
+                }
+
+                // f1.owner.domain == f2.owner.domain AND
+                // f1.owner.cellIndex == f2.owner.cellIndex
+                // tertiary sort by cell-face index
+                return f1.owner.cellFaceIndex < f2.owner.cellFaceIndex;
+            });
+
+        // Init the domain tracking values used to detect zone transitions.
         PWGM_HDOMAIN_SET_INVALID(rti.data->prevDom);
         PWGM_HDOMAIN_SET_INVALID(rti.data->currDom);
         ShadowFaces::iterator it = faces.begin();
@@ -960,8 +996,10 @@ endCB(PWGM_ENDSTREAM_DATA *data) {
             PWGM_FACESTREAM_DATA &face = *it;
             rti.data->currDom = face.owner.domain;
             if (PWGM_HDOMAIN_ID(rti.data->currDom) !=
-                PWGM_HDOMAIN_ID(rti.data->prevDom)) {
+                    PWGM_HDOMAIN_ID(rti.data->prevDom)) {
+                // We have transitioned from one zone to the next
                 if (PWGM_HDOMAIN_ISVALID(rti.data->prevDom)) {
+                    // Close out the previous zone
                     writeCloseFaceZone(rti, PWGM_FACETYPE_BOUNDARY);
                 }
                 rti.data->prevDom = rti.data->currDom;
@@ -969,9 +1007,11 @@ endCB(PWGM_ENDSTREAM_DATA *data) {
                 rti.data->faceStartIndex = rti.data->faceIndex;
                 writeOpenFaceZone(rti);
             }
+            // Write the face to the current zone
             writeOneFace(rti, face);
             ++rti.data->faceIndex;
         }
+        // Close out the final shadow face zone
         writeCloseFaceZone(rti, PWGM_FACETYPE_BOUNDARY);
     }
 
@@ -979,6 +1019,7 @@ endCB(PWGM_ENDSTREAM_DATA *data) {
 }
 
 
+// Invoked once for each requested grid export.
 PWP_BOOL
 runtimeWrite(CAEP_RTITEM *pRti, PWGM_HGRIDMODEL model,
     const CAEP_WRITEINFO *pWriteInfo)
@@ -987,13 +1028,15 @@ runtimeWrite(CAEP_RTITEM *pRti, PWGM_HGRIDMODEL model,
     if (pRti && pRti->fp && model && pWriteInfo) {
         // init plugin-defined instance data pointer
         FLUENT_DATA fluentData;
-        pRti->data = &fluentData;
+        pRti->data = &fluentData; // cppcheck-suppress autoVariables
 
         PWP_UINT32 cnt = 2; /* the # of MAJOR progress steps */
         // 1. Write vertices
         // 2. Write faces (VC zones are written during face writting)
         if (caeuProgressInit(pRti, cnt)) {
+            // Configure the grid model to enumerate elements grouped by VC
             PwModAppendEnumElementOrder(model, PWGM_ELEMORDER_VC);
+            // Stream the interior model faces first, followed by the BC faces
             ret = PwModStreamFaces(pRti->model, PWGM_FACEORDER_VCGROUPSBCLAST,
                 beginCB, faceCB, endCB, pRti) && !CAEPU_RT_IS_ABORTED(pRti);
             pRti->data->reset();
@@ -1004,17 +1047,37 @@ runtimeWrite(CAEP_RTITEM *pRti, PWGM_HGRIDMODEL model,
 }
 
 
+// Invoked once just after plugin is loaded into memory.
 PWP_BOOL
 runtimeCreate(CAEP_RTITEM * /*pRti*/)
 {
     bool ret = true;
+    // Publish which BC types are non-inflated/shadow.
     const char * const ShadowTypes = "Porous Jump|Fan|Radiator|Interior";
     ret = ret && caeuAssignInfoValue("ShadowBcTypes", ShadowTypes, true);
     return PWP_CAST_BOOL(ret);
 }
 
 
+// Invoked once just before plugin is unloaded from memory.
 PWP_VOID
 runtimeDestroy(CAEP_RTITEM * /*pRti*/)
 {
 }
+
+/****************************************************************************
+*
+* DISCLAIMER:
+* TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, POINTWISE DISCLAIMS
+* ALL WARRANTIES, EITHER EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED
+* TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+* PURPOSE, WITH REGARD TO THIS SCRIPT. TO THE MAXIMUM EXTENT PERMITTED
+* BY APPLICABLE LAW, IN NO EVENT SHALL POINTWISE BE LIABLE TO ANY PARTY
+* FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES
+* WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF
+* BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE
+* USE OF OR INABILITY TO USE THIS SCRIPT EVEN IF POINTWISE HAS BEEN
+* ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND REGARDLESS OF THE
+* FAULT OR NEGLIGENCE OF POINTWISE.
+*
+***************************************************************************/

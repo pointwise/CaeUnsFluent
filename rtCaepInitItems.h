@@ -69,7 +69,7 @@
 
     /* PWU_UNFDATA UnfData */
     {   0,          /* PWP_UINT32 status */
-        0,          /* FILE *fp */
+        nullptr,    /* FILE *fp */
         0,          /* sysFILEPOS fPos */
         PWP_FALSE,  /* PWP_BOOL hadError */
         PWP_FALSE,  /* PWP_BOOL inRec */
@@ -77,58 +77,33 @@
         0,          /* PWP_UINT32 totRecBytes */
         0    },     /* PWP_UINT32 recCnt */
 
-    0,  /* PWGM_HGRIDMODEL model */
+    nullptr,    /* PWGM_HGRIDMODEL model */
 
-    0,  /* const CAEP_WRITEINFO *pWriteInfo */
+    nullptr,    /* const CAEP_WRITEINFO *pWriteInfo */
 
-    0,              /* PWP_UINT32 progTotal */
-    0,              /* PWP_UINT32 progComplete */
-    {0},            /* clock_t clocks[CAEPU_CLKS_SIZE]; */
-    0,              /* PWP_BOOL opAborted */
-    0,              /* FLUENT_DATA *data */
+    0,          /* PWP_UINT32 progTotal */
+    0,          /* PWP_UINT32 progComplete */
+    {0},        /* clock_t clocks[CAEPU_CLKS_SIZE]; */
+    0,          /* PWP_BOOL opAborted */
+    nullptr,    /* FLUENT_DATA *data */
 },
 /*! \endcond */
 
-/************************************************************************/
-/*! \file
-\brief Static Initialization Data for the CAEP_RTITEM Array
-
-The file \sf{%rtCaepInitItems.h} defines the static, compile-time initialization
-of the global CAEP_RTITEM \ref caepRtItem[] array. The CAE Plugin SDK uses this
-array to implement the functions and behaviors required by the
-\ref DOXGRP_APICAEP. If you want to see the SDK implementation details,
-look in the \sf{/shared/CAEP/apiCAEP.cxx} file.
-
-The SDK file \sf{/shared/CAEP/apiCAEP.cxx} includes \sf{%rtCaepInitItems.h} as shown
-below.
-\par
-\dontinclude apiCAEP.cxx
-\skip caepRtItem[] =
-\until };
-
-The format of \sf{%rtCaepInitItems.h} must be valid for the static
-initialization of an array of C-struct's. It is important to note that some of
-\ref CAEP_RTITEM's data members are also structs. This will require
-curly-braces \p {} around these nested data members. If you are not familiar
-with static initialization, see the \ref example_cstruct_init page.
-
-When copied from the \sf{src/plugins/templates/CAEP/} folder to your plugins project
-folder, \sf{%rtCaepInitItems.h} will contain example initilization data for 3
-CAEP_RTITEM array items. This example data must be culled and edited to
-define the settings appropriate for your plugin's implementation.
-
-\note
-The global \ref caepRtItem[] is an array so that a plugin can implement
-multiple CAE exporters in a single binary. However, due to a limitation in
-the "Export-CAE/1.0" implementation, only one CAE exporter is allowed at
-this time. As a result, the \ref caepRtItem[] array must be of size 1 for
-"Export-CAE/1.0" plugins. Pointwise hopes to remove this limitation in
-future releases.
-
-\note
-If you add custom data members to CAEP_RTITEM using rtCaepInstanceData.h, be
-sure to add the additional static initializers when editing \sf{%rtCaepInitItems.h}
-to prevent compiler warnings or errors!
-*/
-
 #endif /* _RTCAEPINITITEMS_H_ */
+
+/****************************************************************************
+*
+* DISCLAIMER:
+* TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, POINTWISE DISCLAIMS
+* ALL WARRANTIES, EITHER EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED
+* TO, IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+* PURPOSE, WITH REGARD TO THIS SCRIPT. TO THE MAXIMUM EXTENT PERMITTED
+* BY APPLICABLE LAW, IN NO EVENT SHALL POINTWISE BE LIABLE TO ANY PARTY
+* FOR ANY SPECIAL, INCIDENTAL, INDIRECT, OR CONSEQUENTIAL DAMAGES
+* WHATSOEVER (INCLUDING, WITHOUT LIMITATION, DAMAGES FOR LOSS OF
+* BUSINESS INFORMATION, OR ANY OTHER PECUNIARY LOSS) ARISING OUT OF THE
+* USE OF OR INABILITY TO USE THIS SCRIPT EVEN IF POINTWISE HAS BEEN
+* ADVISED OF THE POSSIBILITY OF SUCH DAMAGES AND REGARDLESS OF THE
+* FAULT OR NEGLIGENCE OF POINTWISE.
+*
+***************************************************************************/
